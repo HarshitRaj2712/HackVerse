@@ -1,100 +1,155 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { FaRocket, FaUserGraduate, FaCrown, FaGavel, FaUserShield } from 'react-icons/fa';
+import { FaRocket, FaEye, FaEyeSlash, FaLock, FaEnvelope, FaCheckCircle } from 'react-icons/fa';
+import { motion } from 'framer-motion';
 
 export const LoginPage = () => {
   const navigate = useNavigate();
-  const { login, switchRole } = useAuth();
-  const [email, setEmail] = useState('alex.chen@hackverse.io');
-  const [password, setPassword] = useState('password123');
+  const location = useLocation();
+  const { login, loading } = useAuth();
 
-  const handleLogin = (e) => {
+  const [form, setForm] = useState({
+    email: location.state?.registeredEmail || '',
+    password: '',
+  });
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState('');
+  const [notification, setNotification] = useState(location.state?.successMessage || '');
+
+  useEffect(() => {
+    if (location.state?.successMessage) {
+      setNotification(location.state.successMessage);
+    }
+  }, [location.state]);
+
+  const handleChange = (e) => setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    login(email, password);
-    navigate('/participant');
+    setError('');
+    const result = await login(form.email, form.password);
+    if (result?.success) {
+      const role = result.user.role;
+      if (role === 'organizer') navigate('/organizer');
+      else if (role === 'judge') navigate('/judge');
+      else if (role === 'admin') navigate('/admin');
+      else navigate('/participant');
+    } else {
+      setError(result?.message || 'Login failed.');
+    }
   };
 
-  const quickLogins = [
-    { role: 'participant', name: 'Alex Chen', email: 'alex.chen@hackverse.io', icon: FaUserGraduate, desc: 'Participant' },
-    { role: 'organizer', name: 'Sarah Jenkins', email: 'sarah.j@techforge.org', icon: FaCrown, desc: 'Organizer' },
-    { role: 'judge', name: 'Dr. Aris Thorne', email: 'aris.thorne@ai-lab.edu', icon: FaGavel, desc: 'Judge' },
-    { role: 'admin', name: 'Marcus Vance', email: 'admin@summerpep.io', icon: FaUserShield, desc: 'Admin' },
-  ];
-
   return (
-    <div className="min-h-[80vh] flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md space-y-6">
-        <div className="text-center space-y-2">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center mx-auto shadow-lg shadow-indigo-500/30">
-            <FaRocket className="w-6 h-6 text-white" />
-          </div>
-          <h1 className="text-2xl font-extrabold text-white">Sign In to SummerPEP HackVerse</h1>
-          <p className="text-xs text-gray-400">Select a demo role account or enter your credentials.</p>
+    <div className="min-h-[90vh] flex items-center justify-center px-4 py-16 bg-[#030304]">
+      <motion.div
+        initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="w-full max-w-md"
+      >
+        {/* Header */}
+        <div className="text-center mb-10 space-y-3">
+          <Link to="/" className="inline-flex w-12 h-12 rounded-full bg-lime-400 items-center justify-center shadow-[0_0_25px_rgba(163,230,53,0.4)] mx-auto">
+            <FaRocket className="w-5 h-5 text-black" />
+          </Link>
+          <h1 className="text-3xl font-black text-white tracking-tight">Welcome Back</h1>
+          <p className="text-sm text-neutral-400">Sign in to your SummerPEP HackVerse account.</p>
         </div>
 
-        {/* Quick Demo Login Grid */}
-        <div className="glass-panel p-4 rounded-2xl border border-slate-800 space-y-3">
-          <div className="text-[11px] font-bold text-indigo-400 uppercase tracking-wider">1-Click Quick Demo Sign In</div>
-          <div className="grid grid-cols-2 gap-2">
-            {quickLogins.map(item => {
-              const Icon = item.icon;
-              return (
+        {/* Form Card */}
+        <div className="bg-[#0c0c0f] border border-neutral-800 rounded-3xl p-8 space-y-5 shadow-2xl">
+          {notification && (
+            <div className="px-4 py-3 rounded-2xl bg-lime-400/10 border border-lime-400/40 text-lime-400 text-xs font-bold text-center flex items-center justify-center gap-2">
+              <FaCheckCircle className="w-4 h-4 shrink-0 text-lime-400" />
+              <span>{notification}</span>
+            </div>
+          )}
+
+          {error && (
+            <div className="px-4 py-3 rounded-2xl bg-red-500/10 border border-red-500/40 text-red-400 text-xs font-semibold text-center">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Email */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-extrabold text-neutral-300 uppercase tracking-wider">Email Address</label>
+              <div className="relative">
+                <FaEnvelope className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-500" />
+                <input
+                  id="login-email"
+                  type="email"
+                  name="email"
+                  required
+                  autoComplete="email"
+                  placeholder="you@example.com"
+                  value={form.email}
+                  onChange={handleChange}
+                  className="w-full pl-10 pr-4 py-3 rounded-2xl bg-[#141419] border border-neutral-800 focus:border-lime-400/60 focus:outline-none text-sm text-white placeholder-neutral-600 transition-all"
+                />
+              </div>
+            </div>
+
+            {/* Password */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-extrabold text-neutral-300 uppercase tracking-wider">Password</label>
+              <div className="relative">
+                <FaLock className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-500" />
+                <input
+                  id="login-password"
+                  type={showPassword ? 'text' : 'password'}
+                  name="password"
+                  required
+                  autoComplete="current-password"
+                  placeholder="••••••••"
+                  value={form.password}
+                  onChange={handleChange}
+                  className="w-full pl-10 pr-12 py-3 rounded-2xl bg-[#141419] border border-neutral-800 focus:border-lime-400/60 focus:outline-none text-sm text-white placeholder-neutral-600 transition-all"
+                />
                 <button
-                  key={item.role}
-                  onClick={() => {
-                    switchRole(item.role);
-                    navigate(item.role === 'organizer' ? '/organizer' : item.role === 'judge' ? '/judge' : item.role === 'admin' ? '/admin' : '/participant');
-                  }}
-                  className="p-3 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-left transition-all hover:scale-102 flex flex-col justify-between space-y-2"
+                  type="button"
+                  onClick={() => setShowPassword(v => !v)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-300 transition-colors"
                 >
-                  <div className="flex items-center justify-between">
-                    <Icon className="w-4 h-4 text-indigo-400" />
-                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-extrabold uppercase">
-                      {item.desc}
-                    </span>
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold text-white">{item.name}</div>
-                    <div className="text-[10px] text-gray-400 font-mono truncate">{item.email}</div>
-                  </div>
+                  {showPassword ? <FaEyeSlash className="w-3.5 h-3.5" /> : <FaEye className="w-3.5 h-3.5" />}
                 </button>
-              );
-            })}
+              </div>
+            </div>
+
+            {/* Submit */}
+            <button
+              id="login-submit-btn"
+              type="submit"
+              disabled={loading}
+              className="w-full py-3.5 rounded-full bg-lime-400 hover:bg-lime-300 text-black font-extrabold text-sm uppercase tracking-wider shadow-[0_0_25px_rgba(163,230,53,0.35)] transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            >
+              {loading ? 'Signing In...' : 'Sign In'}
+            </button>
+          </form>
+
+          {/* Divider */}
+          <div className="flex items-center gap-3 my-2">
+            <div className="flex-1 h-px bg-neutral-800" />
+            <span className="text-[11px] text-neutral-600 font-bold uppercase tracking-widest">or</span>
+            <div className="flex-1 h-px bg-neutral-800" />
           </div>
+
+          {/* Sign Up Link */}
+          <p className="text-center text-xs text-neutral-400">
+            Don't have an account?{' '}
+            <Link to="/signup" className="text-lime-400 font-extrabold hover:underline">
+              Create one here
+            </Link>
+          </p>
         </div>
 
-        {/* Standard Form */}
-        <form onSubmit={handleLogin} className="glass-panel p-6 rounded-2xl border border-slate-800 space-y-4">
-          <div>
-            <label className="text-xs font-bold text-gray-300 block mb-1">Email Address</label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-bold text-gray-300 block mb-1">Password</label>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white"
-            />
-          </div>
-
-          <button
-            type="submit"
-            className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs shadow-lg shadow-indigo-600/30 transition-all"
-          >
-            Sign In
-          </button>
-        </form>
-      </div>
+        {/* Back to Home */}
+        <p className="text-center mt-6 text-xs text-neutral-600">
+          <Link to="/" className="hover:text-neutral-400 transition-colors">← Back to Home</Link>
+        </p>
+      </motion.div>
     </div>
   );
 };

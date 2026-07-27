@@ -1,84 +1,107 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { initialUsers } from '../data/mockData';
+import axios from 'axios';
 import toast from 'react-hot-toast';
 
 const AuthContext = createContext();
+const API_URL = 'http://localhost:5000/api/auth';
 
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(() => {
-    const saved = localStorage.getItem('summerpep_auth_user');
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) { console.error(e); }
-    }
-    return initialUsers[0]; // Default: Participant Alex Chen
+    try {
+      const saved = localStorage.getItem('summerpep_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
   });
 
+  const [token, setToken] = useState(() => localStorage.getItem('summerpep_token') || null);
+  const [loading, setLoading] = useState(false);
+
+  // Persist user & token
   useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem('summerpep_auth_user', JSON.stringify(currentUser));
+    if (currentUser && token) {
+      localStorage.setItem('summerpep_user', JSON.stringify(currentUser));
+      localStorage.setItem('summerpep_token', token);
     } else {
-      localStorage.removeItem('summerpep_auth_user');
+      localStorage.removeItem('summerpep_user');
+      localStorage.removeItem('summerpep_token');
     }
-  }, [currentUser]);
+  }, [currentUser, token]);
 
-  const switchRole = (targetRole) => {
-    const matchedUser = initialUsers.find(u => u.role === targetRole) || {
-      id: `usr_${Date.now()}`,
-      name: `Demo ${targetRole.toUpperCase()}`,
-      email: `${targetRole}@summerpep.io`,
-      role: targetRole,
-      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=250&q=80',
-      title: `${targetRole.toUpperCase()} Account`,
-      bio: 'Demo mode user account.'
-    };
-    setCurrentUser(matchedUser);
-    toast.success(`Switched role to ${targetRole.toUpperCase()} (${matchedUser.name})`);
-  };
-
-  const login = (email, password) => {
-    const found = initialUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (found) {
-      setCurrentUser(found);
-      toast.success(`Welcome back, ${found.name}!`);
-      return true;
-    } else {
-      // Create guest user
-      const guest = {
-        id: `usr_${Date.now()}`,
-        name: email.split('@')[0],
-        email,
-        role: 'participant',
-        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=250&q=80',
-        title: 'Developer',
-        registeredHackathons: []
-      };
-      setCurrentUser(guest);
-      toast.success(`Logged in as ${guest.name}`);
-      return true;
+  // ─── Real API signup (does NOT auto-login) ─────────────────────────────
+  const signup = async (formData) => {
+    setLoading(true);
+    try {
+      const res = await axios.post(`${API_URL}/signup`, formData);
+      if (res.data.success) {
+        toast.success(`Account created for ${res.data.user.fullName}! Please log in.`);
+        return { success: true, user: res.data.user };
+      }
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Signup failed. Please try again.';
+      toast.error(msg);
+      return { success: false, message: msg };
+    } finally {
+      setLoading(false);
     }
   };
 
+  // ─── Real API login ───────────────────────────────────────────────────────
+  const login = async (email, password) => {
+    setLoading(true);
+    try {
+      const res = await axios.post(`${API_URL}/login`, { email, password });
+      if (res.data.success) {
+        setCurrentUser(res.data.user);
+        setToken(res.data.token);
+        toast.success(res.data.message);
+        return { success: true, user: res.data.user };
+      }
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Login failed. Please check your credentials.';
+      toast.error(msg);
+      return { success: false, message: msg };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ─── Logout ───────────────────────────────────────────────────────────────
   const logout = () => {
     setCurrentUser(null);
-    toast.success('Logged out successfully');
+    setToken(null);
+    toast.success('You have been signed out.');
   };
 
+  // ─── Update profile locally ───────────────────────────────────────────────
   const updateProfile = (updatedFields) => {
-    setCurrentUser(prev => ({
-      ...prev,
-      ...updatedFields
-    }));
+    setCurrentUser(prev => ({ ...prev, ...updatedFields }));
     toast.success('Profile updated!');
+  };
+
+  // ─── Demo role switcher (for development/demo only) ───────────────────────
+  const switchRole = (targetRole) => {
+    const demoUsers = {
+      participant: { id: 'demo_1', fullName: 'Alex Chen', email: 'alex.chen@hackverse.io', role: 'participant', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80' },
+      organizer:   { id: 'demo_2', fullName: 'Sarah Jenkins', email: 'sarah.j@techforge.org', role: 'organizer', avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=250&q=80' },
+      judge:       { id: 'demo_3', fullName: 'Dr. Aris Thorne', email: 'aris.thorne@ai-lab.edu', role: 'judge', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=250&q=80' },
+      admin:       { id: 'demo_4', fullName: 'Marcus Vance', email: 'admin@summerpep.io', role: 'admin', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=250&q=80' },
+    };
+    const demoUser = demoUsers[targetRole] || demoUsers.participant;
+    setCurrentUser(demoUser);
+    setToken('demo_token_' + targetRole);
+    toast.success(`Switched to ${targetRole.toUpperCase()} demo (${demoUser.fullName})`);
   };
 
   return (
     <AuthContext.Provider value={{
       currentUser,
-      switchRole,
+      token,
+      loading,
+      isAuthenticated: !!currentUser,
+      signup,
       login,
       logout,
       updateProfile,
-      isAuthenticated: !!currentUser
     }}>
       {children}
     </AuthContext.Provider>
@@ -86,7 +109,7 @@ export const AuthProvider = ({ children }) => {
 };
 
 export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) throw new Error('useAuth must be used within an AuthProvider');
-  return context;
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used within an AuthProvider');
+  return ctx;
 };
