@@ -13,6 +13,11 @@ import { Leaderboard } from '../pages/Hackathons/Leaderboard';
 import { LoginPage } from '../pages/Auth/LoginPage';
 import { SignupPage } from '../pages/Auth/SignupPage';
 
+// Common Authenticated Pages
+import { ProfilePage } from '../pages/Profile/ProfilePage';
+import { DashboardPage } from '../pages/Dashboard/DashboardPage';
+import { NotFoundPage } from '../pages/Error/NotFoundPage';
+
 // Role-Specific Pages
 import { ParticipantDashboard } from '../pages/Participant/ParticipantDashboard';
 import { SubmitProject } from '../pages/Participant/SubmitProject';
@@ -30,12 +35,21 @@ export const AppRoutes = () => {
       <Route path="/hackathons" element={<ExploreHackathons />} />
       <Route path="/hackathons/:id" element={<HackathonDetails />} />
       <Route path="/team-finder" element={<TeamFinder />} />
+      <Route path="/teams" element={<TeamFinder />} />
       <Route path="/leaderboards" element={<Leaderboard />} />
       <Route path="/leaderboards/:hackathonId" element={<Leaderboard />} />
 
       {/* ── Auth Routes ────────────────────────────────────────────────── */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
+
+      {/* ── Authenticated Common Routes ───────────────────────────────── */}
+      <Route path="/dashboard" element={<DashboardPage />} />
+      <Route path="/profile" element={
+        <ProtectedRoute>
+          <ProfilePage />
+        </ProtectedRoute>
+      } />
 
       {/* ── Participant Routes ─────────────────────────────────────────── */}
       <Route path="/participant" element={
@@ -80,8 +94,8 @@ export const AppRoutes = () => {
         </ProtectedRoute>
       } />
 
-      {/* ── Fallback ───────────────────────────────────────────────────── */}
-      <Route path="*" element={<Navigate to="/" replace />} />
+      {/* ── 404 Fallback ────────────────────────────────────────────────── */}
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
 };

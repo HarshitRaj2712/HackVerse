@@ -4,14 +4,28 @@ import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import authRoutes from './routes/auth.js';
 import adminRoutes from './routes/admin.js';
+import submissionRoutes from './routes/submissions.js';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const allowedOrigins = (process.env.CLIENT_ORIGINS || 'http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,https://hack-verse2712.vercel.app')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
+  credentials: true,
+}));
 app.use(express.json());
 
 // MongoDB connection
@@ -22,6 +36,7 @@ mongoose.connect(process.env.MONGO_URL)
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/submissions', submissionRoutes);
 
 // Health Check
 app.get('/api/health', (req, res) => {
@@ -197,20 +212,7 @@ app.post('/api/hackathons', (req, res) => {
   res.status(201).json({ success: true, data: newHackathon });
 });
 
-// ─── Submissions API ─────────────────────────────────────────────────────────
-app.get('/api/submissions', (req, res) => {
-  let filtered = submissions;
-  if (req.query.hackathonId) filtered = filtered.filter(s => s.hackathonId === req.query.hackathonId);
-  res.json({ success: true, data: filtered });
-});
 
-app.post('/api/submissions', (req, res) => {
-  const newSub = { id: `sub_${Date.now()}`, submittedAt: new Date().toISOString(), status: 'pending', scores: [], averageScore: 0, ...req.body };
-  submissions.unshift(newSub);
-  const hk = hackathons.find(h => h.id === req.body.hackathonId);
-  if (hk) hk.submissionsCount += 1;
-  res.status(201).json({ success: true, data: newSub });
-});
 
 // ─── Teams API ───────────────────────────────────────────────────────────────
 app.get('/api/teams', (req, res) => {

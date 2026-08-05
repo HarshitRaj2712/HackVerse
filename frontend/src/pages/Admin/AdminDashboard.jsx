@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useHackathons } from '../../context/HackathonContext';
-import axios from 'axios';
 import {
   FaUserShield, FaUsers, FaTrophy, FaPaperPlane, FaTrash,
   FaBan, FaCheck, FaGavel, FaCrown, FaUserGraduate,
@@ -10,8 +9,7 @@ import {
 } from 'react-icons/fa';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
-
-const API = 'http://localhost:5000/api';
+import { api } from '../../services/api';
 
 export const AdminDashboard = () => {
   const { currentUser, token } = useAuth();
@@ -33,7 +31,7 @@ export const AdminDashboard = () => {
 
   const fetchUsers = async () => {
     try {
-      const res = await axios.get(`${API}/admin/users`, authHeaders);
+      const res = await api.get('/admin/users', authHeaders);
       setUsers(res.data.data);
     } catch {
       toast.error('Could not load users from server.');
@@ -44,7 +42,7 @@ export const AdminDashboard = () => {
 
   const fetchAnalytics = async () => {
     try {
-      const res = await axios.get(`${API}/admin/analytics`, authHeaders);
+      const res = await api.get('/admin/analytics', authHeaders);
       setAnalytics(res.data.data);
     } catch {
       console.warn('Analytics unavailable');
@@ -54,7 +52,7 @@ export const AdminDashboard = () => {
   const handleDeleteUser = async (userId, userName) => {
     if (!window.confirm(`Permanently delete user "${userName}"? This cannot be undone.`)) return;
     try {
-      await axios.delete(`${API}/admin/users/${userId}`, authHeaders);
+      await api.delete(`/admin/users/${userId}`, authHeaders);
       setUsers(prev => prev.filter(u => u._id !== userId));
       toast.success(`User "${userName}" deleted.`);
     } catch (err) {
@@ -64,7 +62,7 @@ export const AdminDashboard = () => {
 
   const handleToggleBlock = async (userId, currentlyBlocked) => {
     try {
-      const res = await axios.patch(`${API}/admin/users/${userId}/block`, { isBlocked: !currentlyBlocked }, authHeaders);
+      const res = await api.patch(`/admin/users/${userId}/block`, { isBlocked: !currentlyBlocked }, authHeaders);
       setUsers(prev => prev.map(u => u._id === userId ? res.data.data : u));
       toast.success(res.data.message);
     } catch (err) {
@@ -74,7 +72,7 @@ export const AdminDashboard = () => {
 
   const handleRoleChange = async (userId, newRole) => {
     try {
-      const res = await axios.put(`${API}/admin/users/${userId}`, { role: newRole }, authHeaders);
+      const res = await api.put(`/admin/users/${userId}`, { role: newRole }, authHeaders);
       setUsers(prev => prev.map(u => u._id === userId ? res.data.data : u));
       toast.success(`Role updated to "${newRole}".`);
     } catch (err) {

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { initialHackathons, initialSubmissions, initialTeamPosts, initialNotifications } from '../data/mockData';
+import { initialHackathons, initialTeamPosts, initialNotifications } from '../data/mockData';
 import toast from 'react-hot-toast';
+import { api } from '../services/api';
 
 const HackathonContext = createContext();
 
@@ -10,10 +11,9 @@ export const HackathonProvider = ({ children }) => {
     return saved ? JSON.parse(saved) : initialHackathons;
   });
 
-  const [submissions, setSubmissions] = useState(() => {
-    const saved = localStorage.getItem('summerpep_submissions');
-    return saved ? JSON.parse(saved) : initialSubmissions;
-  });
+  // Submissions state starts empty (or loaded from backend/localStorage) - no dummy data forced
+  const [submissions, setSubmissions] = useState([]);
+  const [loadingSubmissions, setLoadingSubmissions] = useState(true);
 
   const [teamPosts, setTeamPosts] = useState(() => {
     const saved = localStorage.getItem('summerpep_teams');
@@ -24,6 +24,27 @@ export const HackathonProvider = ({ children }) => {
     const saved = localStorage.getItem('summerpep_notifications');
     return saved ? JSON.parse(saved) : initialNotifications;
   });
+
+  // Fetch real submissions from backend MongoDB API on mount
+  useEffect(() => {
+    fetchSubmissions();
+  }, []);
+
+  const fetchSubmissions = async () => {
+    setLoadingSubmissions(true);
+    try {
+      const res = await api.get('/submissions');
+      if (res.data.success) {
+        setSubmissions(res.data.data);
+      }
+    } catch (err) {
+      console.warn('Could not fetch submissions from server, using local state.');
+      const saved = localStorage.getItem('summerpep_submissions');
+      if (saved) setSubmissions(JSON.parse(saved));
+    } finally {
+      setLoadingSubmissions(false);
+    }
+  };
 
   useEffect(() => {
     localStorage.setItem('summerpep_hackathons', JSON.stringify(hackathons));
@@ -85,10 +106,9 @@ export const HackathonProvider = ({ children }) => {
       return h;
     }));
 
-    // Add notification
     const newNotif = {
       id: `notif_${Date.now()}`,
-      userId: user.id,
+      userId: user.id || user._id,
       title: 'Registration Confirmed!',
       message: `You are officially registered for the hackathon. Happy hacking!`,
       date: 'Just now',
@@ -98,40 +118,70 @@ export const HackathonProvider = ({ children }) => {
     toast.success('Successfully registered for Hackathon!');
   };
 
-  const submitProject = (submissionData) => {
-    const newSub = {
-      id: `sub_${Date.now()}`,
-      submittedAt: new Date().toISOString(),
-      status: 'pending',
-      scores: [],
-      averageScore: 0,
-      ...submissionData
-    };
+  // Submit project (POST to backend API + update local state)
+  const submitProject = async (submissionData, token) => {
+    try {
+      const headers = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
+      const res = await api.post('/submissions', submissionData, headers);
+      if (res.data.success) {
+        const savedSub = res.data.data;
+        setSubmissions(prev => [savedSub, ...prev]);
 
-    setSubmissions(prev => [newSub, ...prev]);
+        // Increment hackathon submission count
+        setHackathons(prev => prev.map(h => {
+          if (h.id === submissionData.hackathonId) {
+            return { ...h, submissionsCount: (h.submissionsCount || 0) + 1 };
+          }
+          return h;
+        }));
 
-    // Increment submission count on hackathon
-    setHackathons(prev => prev.map(h => {
-      if (h.id === submissionData.hackathonId) {
-        return { ...h, submissionsCount: h.submissionsCount + 1 };
+        toast.success('Project submitted successfully! It is now listed for review.');
+        return savedSub;
       }
-      return h;
-    }));
-
-    toast.success('Project submitted successfully! Judges will review your project.');
-    return newSub;
+    } catch (err) {
+      console.warn('Backend submission error, saving locally:', err);
+      // Fallback local save if offline
+      const newSub = {
+        id: `sub_${Date.now()}`,
+        submittedAt: new Date().toISOString(),
+        status: 'submitted',
+        scores: [],
+        averageScore: 0,
+        ...submissionData
+      };
+      setSubmissions(prev => [newSub, ...prev]);
+      toast.success('Project submitted successfully!');
+      return newSub;
+    }
   };
 
-  const submitJudgeScore = (submissionId, scoreData, judgeUser) => {
+  // Submit judge score
+  const submitJudgeScore = async (submissionId, scoreData, judgeUser, token) => {
+    try {
+      const headers = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
+      const res = await api.post(`/submissions/${submissionId}/evaluate`, scoreData, headers);
+      if (res.data.success) {
+        const updatedSub = res.data.data;
+        setSubmissions(prev => prev.map(s => (s._id === submissionId || s.id === submissionId) ? updatedSub : s));
+        toast.success('Evaluation submitted successfully!');
+        return;
+      }
+    } catch (err) {
+      console.warn('Evaluation API error, updating local state:', err);
+    }
+
+    // Local fallback
     setSubmissions(prev => prev.map(sub => {
-      if (sub.id === submissionId) {
-        // Check if judge already scored
-        const existingIndex = sub.scores.findIndex(s => s.judgeId === judgeUser.id);
-        let updatedScores = [...sub.scores];
+      if (sub.id === submissionId || sub._id === submissionId) {
+        const existingIndex = sub.scores?.findIndex(s => s.judgeId === (judgeUser.id || judgeUser._id)) ?? -1;
+        let updatedScores = sub.scores ? [...sub.scores] : [];
+
+        const totalScore = (Number(scoreData.innovationScore || 0) + Number(scoreData.technicalScore || 0) + Number(scoreData.impactScore || 0) + Number(scoreData.presentationScore || 0));
 
         const scoreObj = {
-          judgeId: judgeUser.id,
-          judgeName: judgeUser.name,
+          judgeId: judgeUser.id || judgeUser._id,
+          judgeName: judgeUser.fullName || judgeUser.name,
+          totalScore,
           ...scoreData
         };
 
@@ -141,13 +191,7 @@ export const HackathonProvider = ({ children }) => {
           updatedScores.push(scoreObj);
         }
 
-        // Calculate average score out of 100
-        const totalSum = updatedScores.reduce((acc, curr) => {
-          const s = (curr.innovation || 0) + (curr.technical || 0) + (curr.design || 0) + (curr.impact || 0) + (curr.presentation || 0);
-          return acc + s;
-        }, 0);
-
-        const avg = Math.round((totalSum / updatedScores.length) * 10) / 10;
+        const avg = Math.round((updatedScores.reduce((acc, c) => acc + (c.totalScore || 0), 0) / updatedScores.length) * 10) / 10;
 
         return {
           ...sub,
@@ -180,19 +224,26 @@ export const HackathonProvider = ({ children }) => {
     toast.success(`Hackathon status updated to "${newStatus}"`);
   };
 
+  const deleteHackathon = (hackathonId) => {
+    setHackathons(prev => prev.filter(h => h.id !== hackathonId));
+  };
+
   return (
     <HackathonContext.Provider value={{
       hackathons,
       submissions,
+      loadingSubmissions,
       teamPosts,
       notifications,
+      fetchSubmissions,
       createHackathon,
       registerForHackathon,
       submitProject,
       submitJudgeScore,
       createTeamPost,
       markNotificationRead,
-      updateHackathonStatus
+      updateHackathonStatus,
+      deleteHackathon,
     }}>
       {children}
     </HackathonContext.Provider>

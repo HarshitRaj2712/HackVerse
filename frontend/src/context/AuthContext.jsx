@@ -1,9 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import axios from 'axios';
 import toast from 'react-hot-toast';
+import { api } from '../services/api';
 
 const AuthContext = createContext();
-const API_URL = 'http://localhost:5000/api/auth';
 
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(() => {
@@ -31,7 +30,7 @@ export const AuthProvider = ({ children }) => {
   const signup = async (formData) => {
     setLoading(true);
     try {
-      const res = await axios.post(`${API_URL}/signup`, formData);
+      const res = await api.post('/auth/signup', formData);
       if (res.data.success) {
         toast.success(`Account created for ${res.data.user.fullName}! Please log in.`);
         return { success: true, user: res.data.user };
@@ -49,7 +48,7 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     setLoading(true);
     try {
-      const res = await axios.post(`${API_URL}/login`, { email, password });
+      const res = await api.post('/auth/login', { email, password });
       if (res.data.success) {
         setCurrentUser(res.data.user);
         setToken(res.data.token);

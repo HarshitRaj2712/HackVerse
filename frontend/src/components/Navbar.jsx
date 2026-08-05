@@ -197,12 +197,20 @@ export const Navbar = () => {
                         </div>
                         <div className="space-y-1">
                           <Link
-                            to={getDashboardPath()}
+                            to="/dashboard"
                             onClick={() => setShowProfileMenu(false)}
                             className="flex items-center gap-2 px-3 py-2 rounded-2xl text-xs text-neutral-300 hover:text-white hover:bg-neutral-800/60 transition-all"
                           >
                             <FaUser className="w-3.5 h-3.5 text-lime-400" />
                             <span>My Dashboard</span>
+                          </Link>
+                          <Link
+                            to="/profile"
+                            onClick={() => setShowProfileMenu(false)}
+                            className="flex items-center gap-2 px-3 py-2 rounded-2xl text-xs text-neutral-300 hover:text-white hover:bg-neutral-800/60 transition-all"
+                          >
+                            <FaUser className="w-3.5 h-3.5 text-lime-400" />
+                            <span>My Profile</span>
                           </Link>
                           <button
                             onClick={() => { logout(); setShowProfileMenu(false); navigate('/'); }}
